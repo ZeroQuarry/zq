@@ -1,0 +1,16 @@
+# macOS cruft
+.DS_Store
+
+# Local agent/tooling scratch (never publish)
+.v2c/
+.zwork/
+
+# Local builds
+/zq
+dist/*.tar.gz
+dist/SHA256SUMS
+
+# Editor
+*.swp
+.idea/
+.vscode/
