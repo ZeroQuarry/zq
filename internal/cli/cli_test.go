@@ -614,3 +614,25 @@ func TestAPIFlagSchemeValidation(t *testing.T) {
 		t.Fatalf("exit %d, err: %s", code, stderr)
 	}
 }
+
+// The end-to-end shape of the empty-credential finding: piped
+// basic auth where the username and password are both empty lines.
+// Must fail with no upload — an all-empty credential used to be
+// stored with exit 0 and a reference id. (A username-only answer
+// still uploads: the platform's own gate accepts it.)
+func TestEmptyBasicAuthRejected(t *testing.T) {
+	f := newFakePlatform(t)
+	withFakeEnv(t, f)
+	out, stderr, code := runCLI(t, []string{
+		"creds", "add", "identity", "--project", "Main Site", "--kind", "basic", "--label", "x",
+	}, "\n\n")
+	if code != 1 || out != "" {
+		t.Fatalf("exit %d, out %q", code, out)
+	}
+	if !strings.Contains(stderr, "no credential material") {
+		t.Fatalf("error: %s", stderr)
+	}
+	if len(f.identityBodies) != 0 {
+		t.Fatalf("uploaded: %+v", f.identityBodies)
+	}
+}
