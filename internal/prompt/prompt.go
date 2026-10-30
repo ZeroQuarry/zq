@@ -70,11 +70,19 @@ func (s *Streams) Secret(prompt string) (string, error) {
 		return string(raw), nil
 	}
 	fmt.Fprintf(s.Stderr, "%s (reading stdin): ", prompt)
-	line, err := s.readLine()
-	if err != nil {
+	// Read the raw reader: EOF must be distinguishable from an
+	// explicit empty line (readLine collapses the former into the
+	// latter, and EOF here means "no answer" — a dry pipe must not
+	// upload an empty secret). An explicitly empty line is still an
+	// answer; callers reject empty secret material themselves.
+	raw, err := s.lines().ReadString('\n')
+	if err != nil && raw == "" {
+		if errors.Is(err, io.EOF) {
+			return "", fmt.Errorf("%w — pipe the secret material (or answer interactively)", ErrEmptyInput)
+		}
 		return "", err
 	}
-	return line, nil
+	return strings.TrimRight(raw, "\r\n"), nil
 }
 
 // SecretMultiline reads secret material that spans lines (a pasted
