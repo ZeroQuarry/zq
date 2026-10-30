@@ -1,8 +1,10 @@
 package cli
 
 import (
+	"errors"
 	"flag"
 	"fmt"
+	"net/url"
 	"os/exec"
 	"runtime"
 	"time"
@@ -31,6 +33,20 @@ func cmdLogin(c *cmdCtx) error {
 	dc, err := auth.StartDeviceFlow(ctx, client, d)
 	if err != nil {
 		return err
+	}
+
+	// The verification URI comes straight from the (possibly hostile)
+	// device-authorization response: only plain web URLs may be shown
+	// or opened. Anything else handed to open/xdg-open/rundll32 would
+	// launch whatever handler the OS registered for the scheme
+	// (file://, UNC, …), and control bytes could spoof this prompt.
+	if !isWebURL(dc.VerificationURI) {
+		return errors.New("authorization server returned an unsafe verification_uri")
+	}
+	if dc.VerificationURIComplete != "" && !isWebURL(dc.VerificationURIComplete) {
+		// RFC 8628 §3.2.1: ignore an unusable verification_uri_complete;
+		// the plain verification_uri above still works.
+		dc.VerificationURIComplete = ""
 	}
 
 	// The user_code and verification URI are DESIGNED to be displayed
@@ -158,6 +174,12 @@ var openBrowserFn = openBrowser
 // openBrowser is best-effort: false when no opener exists or it fails
 // (the printed URL is always enough to finish the flow).
 func openBrowser(url string) bool {
+	if !isWebURL(url) {
+		// Defense in depth at the sink: never hand a non-web URL to
+		// the OS openers — file://, UNC paths, or custom-scheme
+		// handlers would launch whatever the OS has registered.
+		return false
+	}
 	var cmd *exec.Cmd
 	switch runtime.GOOS {
 	case "darwin":
@@ -172,4 +194,19 @@ func openBrowser(url string) bool {
 	}
 	go func() { _ = cmd.Wait() }()
 	return true
+}
+
+// isWebURL reports whether raw is a plain http/https web address: the
+// verification URI comes from the authorization server's responses, so
+// any other scheme (file:, ssh:, custom handlers, …) must never be
+// displayed or opened.
+func isWebURL(raw string) bool {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return false
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return false
+	}
+	return u.Host != "" && u.User == nil
 }
