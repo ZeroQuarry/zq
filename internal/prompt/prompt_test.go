@@ -140,3 +140,38 @@ func TestIsTerminalFalseForPipes(t *testing.T) {
 	s2.Stdin = os.Stdin
 	_ = s2 // (os.Stdin in `go test` is not a TTY either; no assert)
 }
+
+// A pipe that runs dry before the secret is an ERROR, not an empty
+// answer — the dry-pipe hole let a `creds add` upload an
+// empty-password credential with exit 0.
+func TestSecretDryPipeFails(t *testing.T) {
+	s, errBuf := newStreams("")
+	got, err := s.Secret("Password")
+	if !errors.Is(err, ErrEmptyInput) {
+		t.Fatalf("want ErrEmptyInput, got %v", err)
+	}
+	if got != "" {
+		t.Fatalf("no value on a dry pipe, got %q", got)
+	}
+	if strings.Contains(errBuf.String(), "hunter2") {
+		t.Error("nothing secret to leak, but keep the guarantee uniform")
+	}
+}
+
+// A secret without a trailing newline (printf-style pipes) is still
+// an answer; CRLF is trimmed.
+func TestSecretAcceptsUnterminatedLine(t *testing.T) {
+	s, _ := newStreams("hunter2")
+	got, err := s.Secret("Password")
+	if err != nil {
+		t.Fatalf("unterminated pipe must work: %v", err)
+	}
+	if got != "hunter2" {
+		t.Fatalf("got %q", got)
+	}
+
+	s, _ = newStreams("hunter2\r\n")
+	if got, err = s.Secret("Password"); err != nil || got != "hunter2" {
+		t.Fatalf("CRLF: got %q, %v", got, err)
+	}
+}

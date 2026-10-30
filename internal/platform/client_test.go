@@ -172,10 +172,25 @@ func TestAuthHasCredential(t *testing.T) {
 		t.Error("headers count")
 	}
 	if !(&Auth{BasicAuth: &BasicAuth{Username: "u"}}).HasCredential() {
-		t.Error("basic counts")
+		t.Error("basic counts with a username")
 	}
-	if !(&Auth{FormLogin: &FormLogin{URL: "https://x"}}).HasCredential() {
-		t.Error("form login counts")
+	if !(&Auth{BasicAuth: &BasicAuth{Password: "p"}}).HasCredential() {
+		t.Error("basic counts with a password")
+	}
+	// Empty material authenticates nothing and must not count as a
+	// credential — the empty-line-in-a-pipe upload guard.
+	if (&Auth{BasicAuth: &BasicAuth{}}).HasCredential() {
+		t.Error("empty basic material must not count")
+	}
+	if !(&Auth{FormLogin: &FormLogin{URL: "https://x", Username: "u"}}).HasCredential() {
+		t.Error("form login counts with URL + username")
+	}
+	// The platform's own form requires a URL AND a user-or-password.
+	if (&Auth{FormLogin: &FormLogin{URL: "https://x"}}).HasCredential() {
+		t.Error("form login with a URL alone must not count")
+	}
+	if (&Auth{FormLogin: &FormLogin{Username: "u", Password: "p"}}).HasCredential() {
+		t.Error("form login without a URL must not count")
 	}
 	var nilAuth *Auth
 	if nilAuth.HasCredential() {
