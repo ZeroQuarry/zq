@@ -179,8 +179,8 @@ type cmdCtx struct {
 	streams *prompt.Streams
 	args    []string
 
-	apiBase   string
-	apiFlag   string
+	apiBase string
+	apiFlag string
 }
 
 // parse consumes the command's flags, then resolves --api/ZQ_URL and

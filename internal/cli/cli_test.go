@@ -636,3 +636,32 @@ func TestEmptyBasicAuthRejected(t *testing.T) {
 		t.Fatalf("uploaded: %+v", f.identityBodies)
 	}
 }
+
+// The --token flag is deliberately gone: a static API key must never
+// ride the command line (shell history, process listings). The
+// rejection is a usage error, and it must not echo the value.
+func TestTokenFlagRemoved(t *testing.T) {
+	f := newFakePlatform(t)
+	withFakeEnv(t, f)
+	t.Setenv("ZQ_KEY", "") // isolate: only the flag could authenticate here
+
+	out, stderr, code := runCLI(t, []string{"whoami", "--token", "zq_SECRETVALUE"}, "")
+	if code != 2 || out != "" {
+		t.Fatalf("exit %d, out %q", code, out)
+	}
+	if !strings.Contains(stderr, "-token") {
+		t.Fatalf("expected the unknown-flag error: %s", stderr)
+	}
+	if strings.Contains(stderr, "zq_SECRETVALUE") {
+		t.Fatal("the rejection echoed the secret value")
+	}
+
+	// The documented surface no longer advertises the flag either.
+	help, _, hcode := runCLI(t, []string{"--help"}, "")
+	if hcode != 0 {
+		t.Fatalf("help exit %d", hcode)
+	}
+	if strings.Contains(help, "--token") {
+		t.Fatal("usage text still advertises --token")
+	}
+}
