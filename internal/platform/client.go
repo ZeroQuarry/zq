@@ -109,11 +109,28 @@ type FormLogin struct {
 // HasCredential reports whether the auth object carries at least one
 // credential. The platform rejects uploads without one, so the CLI
 // applies the same rule before sending.
+//
+// Presence of the basic_auth/form_login keys is not enough: a struct
+// whose fields are all empty authenticates nothing, so this requires
+// actual material within them — the same gate the platform's own form
+// applies (a form login needs a URL plus a username or password; basic
+// needs either half). This is the backstop that keeps an explicitly
+// empty answer (an empty line in a piped run) from being uploaded as
+// a working-looking credential.
 func (a *Auth) HasCredential() bool {
 	if a == nil {
 		return false
 	}
-	return a.Cookies != "" || len(a.Headers) > 0 || a.BasicAuth != nil || a.FormLogin != nil
+	if a.Cookies != "" || len(a.Headers) > 0 {
+		return true
+	}
+	if b := a.BasicAuth; b != nil && (b.Username != "" || b.Password != "") {
+		return true
+	}
+	if fl := a.FormLogin; fl != nil && fl.URL != "" && (fl.Username != "" || fl.Password != "") {
+		return true
+	}
+	return false
 }
 
 // IdentityRef is one row of the identity library — metadata only,
