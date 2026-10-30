@@ -153,7 +153,7 @@ func cmdWhoami(c *cmdCtx) error {
 	if err := c.parse(fs); err != nil {
 		return err
 	}
-	client, err := resolveClient(c.ctx, c.apiBase, c.tokenFlag, c.stderr)
+	client, err := resolveClient(c.ctx, c.apiBase, c.stderr)
 	if err != nil {
 		return err
 	}
