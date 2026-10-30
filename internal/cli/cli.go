@@ -10,8 +10,8 @@
 // Output contract: `creds add` writes ONLY the reference id to stdout.
 // Every prompt, progress line, and error goes to stderr. Credential
 // values exist in three places and nowhere else: the hidden prompt /
-// the --from-file bytes, the process's request body on the wire, and
-// the platform's encrypted store.
+// the --from-file bytes or ZQ_KEY, the process's request body on the
+// wire, and the platform's encrypted store.
 package cli
 
 import (
@@ -84,18 +84,17 @@ func hostOrPlaceholder(base string) string {
 	return strings.TrimPrefix(strings.TrimPrefix(base, "https://"), "http://")
 }
 
-// staticKey resolves the CI/headless credential: --token > ZQ_KEY.
-func staticKey(tokenFlag string) string {
-	if tokenFlag != "" {
-		return tokenFlag
-	}
+// staticKey resolves the CI/headless credential from the environment.
+// There is no --token flag: a static API key must never ride the
+// command line (flags leak via shell history and process listings).
+func staticKey() string {
 	return os.Getenv("ZQ_KEY")
 }
 
 // resolveClient builds an authenticated platform client or returns a
 // "how to sign in" error.
-func resolveClient(ctx context.Context, apiBase, tokenFlag string, stderr io.Writer) (*platform.Client, error) {
-	b, err := auth.Resolve(ctx, platform.HTTP(), staticKey(tokenFlag), apiBase)
+func resolveClient(ctx context.Context, apiBase string, stderr io.Writer) (*platform.Client, error) {
+	b, err := auth.Resolve(ctx, platform.HTTP(), staticKey(), apiBase)
 	if err != nil {
 		if errors.Is(err, auth.ErrNotLoggedIn) {
 			return nil, failf(
@@ -180,17 +179,15 @@ type cmdCtx struct {
 	streams *prompt.Streams
 	args    []string
 
-	apiBase   string
-	apiFlag   string
-	tokenFlag string
+	apiBase string
+	apiFlag string
 }
 
 // parse consumes the command's flags, then resolves --api/ZQ_URL and
-// --token/ZQ_KEY exactly once. -h/--help maps to exit 0.
+// ZQ_KEY exactly once. -h/--help maps to exit 0.
 func (c *cmdCtx) parse(fs *flag.FlagSet) error {
 	fs.SetOutput(c.stderr)
 	fs.StringVar(&c.apiFlag, "api", "", "Platform base URL (default: ZQ_URL, then the saved login, then "+config.DefaultAPIBase+")")
-	fs.StringVar(&c.tokenFlag, "token", "", "Static API key for this invocation (default: ZQ_KEY)")
 	if err := fs.Parse(c.args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return errHelp
@@ -223,7 +220,6 @@ Usage:
 
 Common flags:
   --api URL     target a self-hosted deployment (env: ZQ_URL)
-  --token KEY   static API key for CI (env: ZQ_KEY; skips OAuth)
 
 Credential values are only ever read from hidden prompts or
 --from-file — never command-line flags (flags leak via shell history

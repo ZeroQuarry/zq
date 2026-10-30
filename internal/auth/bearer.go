@@ -14,8 +14,9 @@ import (
 
 // Bearer resolves the credentials every API call uses, in this order:
 //
-//  1. a static key passed explicitly (--token or ZQ_KEY) — the
-//     indefinitely-supported CI/headless path, and
+//  1. a static key from the environment (ZQ_KEY) — the
+//     indefinitely-supported CI/headless path. Never a command-line
+//     flag: flags leak via shell history and process listings, and
 //  2. the stored device-flow token, proactively refreshed from the
 //     stored issuer when it is within 60s of expiring.
 //
