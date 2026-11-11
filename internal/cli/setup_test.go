@@ -18,6 +18,10 @@ func withFakeHome(t *testing.T) string {
 	t.Helper()
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	// XDG_CONFIG_HOME outranks HOME in os.UserConfigDir(), so an
+	// ambient value would send the config-directory lookup outside
+	// the fake home. Pin it to the same place the fake home uses.
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
 	t.Setenv("ZQ_CONFIG_DIR", t.TempDir())
 	t.Setenv("ZQ_URL", "")
 	t.Setenv("PATH", t.TempDir())

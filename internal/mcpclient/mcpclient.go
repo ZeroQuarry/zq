@@ -172,7 +172,7 @@ func Detect(e Env) []Client {
 	// Claude Desktop: its config file only takes local stdio servers —
 	// remote servers are added through the app's custom connectors UI —
 	// so it is detected and reported, never written to.
-	if dir := e.desktopDir(); dir != "" && e.exists(dir) {
+	if e.anyDesktopDirExists() {
 		out = append(out, Client{
 			ID:          "claude-desktop",
 			DisplayName: "Claude Desktop",
@@ -183,25 +183,64 @@ func Detect(e Env) []Client {
 	return out
 }
 
-// desktopDir is Claude Desktop's per-OS config directory ("" when it
-// cannot be resolved on this platform).
-func (e Env) desktopDir() string {
+// desktopDirs is every plausible location of Claude Desktop's config
+// directory (empty when none can be resolved on this platform).
+//
+// A Linux desktop may keep it under $XDG_CONFIG_HOME or under
+// ~/.config, and Go's os.UserConfigDir() resolves to the first of
+// those only — it also fails outright when XDG_CONFIG_HOME is a
+// relative path. Claude Desktop's own documented location is
+// ~/.config/Claude, so both are candidates: the client is only ever
+// reported for manual guidance, so a second look can help but never
+// writes anything.
+func (e Env) desktopDirs() []string {
+	var dirs []string
 	switch e.GOOS {
 	case "darwin":
-		return filepath.Join(e.Home, "Library", "Application Support", "Claude")
+		dirs = append(dirs, filepath.Join(e.Home, "Library", "Application Support", "Claude"))
 	case "windows":
 		if e.AppData != "" {
-			return filepath.Join(e.AppData, "Claude")
+			dirs = append(dirs, filepath.Join(e.AppData, "Claude"))
 		}
 		if e.ConfigDir != "" {
-			return filepath.Join(e.ConfigDir, "Claude")
+			dirs = append(dirs, filepath.Join(e.ConfigDir, "Claude"))
 		}
 	default:
 		if e.ConfigDir != "" {
-			return filepath.Join(e.ConfigDir, "Claude")
+			dirs = append(dirs, filepath.Join(e.ConfigDir, "Claude"))
+		}
+		if e.Home != "" {
+			dirs = append(dirs, filepath.Join(e.Home, ".config", "Claude"))
 		}
 	}
-	return ""
+	out := dirs[:0]
+	for _, d := range dirs {
+		if d == "" {
+			continue
+		}
+		dup := false
+		for _, seen := range out {
+			if seen == d {
+				dup = true
+				break
+			}
+		}
+		if !dup {
+			out = append(out, d)
+		}
+	}
+	return out
+}
+
+// anyDesktopDirExists reports whether Claude Desktop's config
+// directory is present in any of its possible locations.
+func (e Env) anyDesktopDirExists() bool {
+	for _, dir := range e.desktopDirs() {
+		if e.exists(dir) {
+			return true
+		}
+	}
+	return false
 }
 
 func (e Env) exists(path string) bool {

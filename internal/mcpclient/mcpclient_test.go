@@ -159,6 +159,24 @@ func TestDetectClaudeDesktop(t *testing.T) {
 	}
 }
 
+// Claude Desktop's documented Linux location is ~/.config/Claude, but
+// Go's os.UserConfigDir() resolves to $XDG_CONFIG_HOME when that is
+// set — so the home location has to be checked on its own, or a
+// desktop with XDG pointed elsewhere is never detected.
+func TestDetectClaudeDesktopOutsideXDG(t *testing.T) {
+	home := t.TempDir()
+	e := fakeEnv(t, home)
+	// A config dir that points somewhere else entirely.
+	e.ConfigDir = filepath.Join(t.TempDir(), "xdg")
+	if err := os.MkdirAll(filepath.Join(home, ".config", "Claude"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	got := Detect(e)
+	if !contains(ids(got), "claude-desktop") {
+		t.Fatalf("claude-desktop not detected via ~/.config: %v", ids(got))
+	}
+}
+
 func TestDetectStableOrder(t *testing.T) {
 	home := t.TempDir()
 	for _, dir := range []string{".cursor", ".codex", ".claude"} {
