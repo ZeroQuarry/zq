@@ -61,9 +61,50 @@ go install github.com/ZeroQuarry/zq@latest
 | `zq login` | Sign in via the OAuth device flow — a URL + code on stderr, your browser does the login (Google/GitHub through the platform's IdP). Tokens stay in your user config directory (`~/.config/zq/credentials.json` on Linux, `~/Library/Application Support/zq/credentials.json` on macOS; override with `ZQ_CONFIG_DIR`), written 0600. |
 | `zq logout` | Best-effort revocation, then deletes the stored token. |
 | `zq whoami` | Verifies credentials the way CI would. |
+| `zq setup` | Registers the ZeroQuarry MCP server with the MCP clients installed on this machine — merge + backup, idempotent; `--print-only` to preview. See below. |
 | `zq creds add identity` | Upload auth material (cookies / headers / basic / form login) to a project's identity library → prints `auth_identity_id`. |
 | `zq creds add git` | Upload an HTTPS token or SSH deploy key → prints `git_credential_id`. |
 | `zq creds list identity\|git` | List stored references — ids, labels, kinds. Metadata only, never values. |
+
+### Connecting your agent's MCP client (`zq setup`)
+
+`zq setup` points your agent at ZeroQuarry: it detects the MCP clients
+on the machine (Claude Code, Cursor, Codex, Claude Desktop) and merges
+the `zeroquarry` server entry into each client's own config. No login,
+no network, no secrets — it works before any account exists, and the
+agent does the authenticating.
+
+It edits config files you own, so it is careful by construction:
+
+- **Merge, never clobber** — only the `zeroquarry` entry is touched;
+  unrelated servers, unknown keys, user-added fields inside the
+  entry (headers, env, ...), and comments (Codex's `config.toml`) all
+  survive. A hand-registered `zeroquarry` entry without a URL (a stdio
+  setup) is reported and left untouched rather than overlaid with a
+  transport it can't use. JSON configs are re-encoded with full number
+  precision — the original bytes are always in the backup.
+- **Backs up before the first write** — the original bytes go to
+  `<config>.zq-backup`, and an existing backup is never overwritten.
+- **Idempotent** — a second run changes nothing on disk.
+- **Prints what it did** — every addition/update is echoed, and each
+  client failure is reported without blocking the others.
+- **`--print-only`** shows exactly what would be written and changes
+  nothing.
+
+Claude Desktop cannot take a remote server from its config file, so for
+it `zq setup` prints the manual step instead of writing: Settings →
+Connectors → Add custom connector, then paste
+`https://mcp.zeroquarry.com/`. Any other MCP client (Windsurf, Zed, ...)
+falls through to the generic JSON snippet the command prints.
+
+Self-hosted deployments pass their own endpoint:
+`zq setup --mcp-url https://zq.corp.example.com/mcp`. When `ZQ_URL` or
+the saved login points somewhere other than the hosted service, `zq
+setup` refuses to guess and asks for `--mcp-url`.
+
+Then tell your agent:
+
+> connect to ZeroQuarry and get me started
 
 ### Values: hidden stdin or `--from-file`, never flags
 
@@ -163,7 +204,8 @@ go build -o zq .  # try it against a stub: see internal/cli/cli_test.go
 ```
 
 Layout: `internal/auth` (device flow + token resolution), `internal/
-platform` (API client + payload shapes), `internal/credfile` +
+platform` (API client + payload shapes), `internal/mcpclient` (MCP
+client detection + config merging for `zq setup`), `internal/credfile` +
 `internal/cookies` (file import + cookie normalization), `internal/
 prompt` (stderr prompts, hidden input), `internal/cli` (commands),
 `internal/config` (settings + 0600 token store). A repository-hygiene

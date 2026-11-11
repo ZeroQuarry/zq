@@ -3,6 +3,8 @@
 //	zq login                 device-flow sign-in (browser does the auth)
 //	zq logout                revoke + clear the stored token
 //	zq whoami                verify credentials / CI sanity check
+//	zq setup                 register the MCP server with installed
+//	                         MCP clients (local files only; no auth)
 //	zq creds add identity    upload auth material → auth_identity_id
 //	zq creds add git         upload git credential → git_credential_id
 //	zq creds list            list stored references (metadata only)
@@ -123,6 +125,8 @@ func Main(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io
 		return runCommand(ctx, args[1:], stdin, stdout, stderr, cmdWhoami)
 	case "creds":
 		return runCreds(ctx, args[1:], stdin, stdout, stderr)
+	case "setup":
+		return runCommand(ctx, args[1:], stdin, stdout, stderr, cmdSetup)
 	case "version", "--version", "-v":
 		fmt.Fprintf(stdout, "zq %s\n", Version)
 		return 0
@@ -214,6 +218,8 @@ Usage:
   zq login [--api URL]                    device-flow sign-in (browser)
   zq logout                               revoke and forget the login
   zq whoami                               verify credentials
+  zq setup [--print-only] [--mcp-url URL] add the ZeroQuarry MCP server to
+                                          the MCP clients on this machine
   zq creds add identity [flags]           → prints auth_identity_id
   zq creds add git [flags]                → prints git_credential_id
   zq creds list identity|git              list references (no values)
