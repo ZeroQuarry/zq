@@ -345,6 +345,30 @@ func TestSetupHelpExitsZero(t *testing.T) {
 	}
 }
 
+// A hand-registered stdio server is not the tool's entry: it must be
+// left alone, and the user must be told why — "skipped" on its own
+// leaves them unable to tell whether the server got registered.
+func TestSetupSkippedEntryExplainsItself(t *testing.T) {
+	home := withFakeHome(t)
+	original := `{"mcpServers": {"zeroquarry": {"command": "zq", "args": ["mcp"]}}}`
+	writeInitial(t, claudeJSONPath(home), original)
+
+	out, stderr, code := runCLI(t, []string{"setup"}, "")
+	if code != 0 {
+		t.Fatalf("exit %d, stderr: %s", code, stderr)
+	}
+	if !strings.Contains(out, "claude-code: skipped") {
+		t.Fatalf("stdout summary missing: %q", out)
+	}
+	if !strings.Contains(stderr, "no url") || !strings.Contains(stderr, "stdio") {
+		t.Fatalf("the skip reason is missing: %s", stderr)
+	}
+	// The entry the tool does not own is untouched, byte for byte.
+	if got := readFile(t, claudeJSONPath(home)); got != original {
+		t.Fatalf("the stdio entry was rewritten: %s", got)
+	}
+}
+
 // --- small helpers -------------------------------------------------------
 
 // writeInitial seeds a config file (and its directory) with content.

@@ -61,8 +61,15 @@ func cmdSetup(c *cmdCtx) error {
 					cl.DisplayName, cl.ManualHint, serverURL)
 				continue
 			}
-			fmt.Fprintf(c.stdout, "%s → %s (would add \"%s\")\n%s\n",
-				cl.DisplayName, cl.ConfigPath, mcpclient.ServerName, cl.Snippet(serverURL))
+			// A JSON client's file is written as one document, so the
+			// preview shows the entry to merge under "mcpServers"; a
+			// TOML client's snippet is the complete table.
+			note := ""
+			if cl.Kind == mcpclient.KindJSON {
+				note = " — merge this entry under the client's \"mcpServers\" object"
+			}
+			fmt.Fprintf(c.stdout, "%s → %s (would add \"%s\")%s\n%s\n",
+				cl.DisplayName, cl.ConfigPath, mcpclient.ServerName, note, cl.Snippet(serverURL))
 		}
 		fmt.Fprintf(c.stdout, "Any other MCP client → merge into its config's \"mcpServers\" object:\n%s\n",
 			mcpclient.GenericSnippet(serverURL))
@@ -101,6 +108,13 @@ func cmdSetup(c *cmdCtx) error {
 		case mcpclient.StatusAdded, mcpclient.StatusUpdated:
 			fmt.Fprintf(c.stderr, "%s: %s \"%s\" in %s\n  %s\n",
 				cl.DisplayName, res.Status, mcpclient.ServerName, cl.ConfigPath, res.Entry)
+		case mcpclient.StatusSkipped:
+			// Say why: the entry is not ours, and "skipped" on its own
+			// leaves the user unable to tell whether the server got
+			// registered at all.
+			fmt.Fprintf(c.stderr, "%s: skipped — the existing %q entry has no url "+
+				"(a stdio server), so it was left untouched (%s)\n",
+				cl.DisplayName, mcpclient.ServerName, cl.ConfigPath)
 		default:
 			fmt.Fprintf(c.stderr, "%s: %s (%s)\n", cl.DisplayName, res.Status, cl.ConfigPath)
 		}

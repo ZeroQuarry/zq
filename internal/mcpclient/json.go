@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 )
@@ -45,6 +46,12 @@ func mergeJSON(path, serverName string, entry map[string]any) (Result, error) {
 	if err := dec.Decode(&doc); err != nil {
 		return Result{}, fmt.Errorf(
 			"%s is not valid JSON (%v) — fix or remove it, then re-run", path, err)
+	}
+	// Exactly one JSON value per file. Trailing content is corruption,
+	// and rewriting the file would silently drop it — say so instead.
+	if err := dec.Decode(new(any)); !errors.Is(err, io.EOF) {
+		return Result{}, fmt.Errorf(
+			"%s has content after the JSON document — fix or remove it, then re-run", path)
 	}
 
 	var servers map[string]any

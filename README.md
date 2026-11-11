@@ -88,8 +88,9 @@ It edits config files you own, so it is careful by construction:
 - **Idempotent** — a second run changes nothing on disk.
 - **Prints what it did** — every addition/update is echoed, and each
   client failure is reported without blocking the others.
-- **`--print-only`** shows exactly what would be written and changes
-  nothing.
+- **`--print-only`** previews the entry each client would get, and
+  changes nothing. A JSON client's file is still re-encoded as a whole
+  when it is written — the preview shows the entry, not the file.
 
 Claude Desktop cannot take a remote server from its config file, so for
 it `zq setup` prints the manual step instead of writing: Settings →

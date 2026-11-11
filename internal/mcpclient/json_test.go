@@ -344,3 +344,49 @@ func TestMergeJSONKeepsNumberPrecision(t *testing.T) {
 		t.Fatalf("big integer was rewritten: %s", got)
 	}
 }
+
+// A file must hold exactly one JSON value: trailing content is
+// corruption, and rewriting the file would drop it silently.
+func TestMergeJSONRejectsTrailingContent(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		content string
+	}{
+		{"garbage", `{"mcpServers": {}} GARBAGE`},
+		{"second document", `{"mcpServers": {}} {"mcpServers": {}}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "mcp.json")
+			writeInitial(t, path, tc.content)
+
+			_, err := mergeJSON(path, ServerName, map[string]any{"url": testURL})
+			if err == nil || !strings.Contains(err.Error(), "after the JSON document") {
+				t.Fatalf("want a fix-it error, got %v", err)
+			}
+			if !strings.Contains(err.Error(), path) {
+				t.Fatalf("error must name the file: %v", err)
+			}
+			if got := string(readBytes(t, path)); got != tc.content {
+				t.Fatalf("the file was modified: %s", got)
+			}
+			if _, err := os.Stat(path + backupSuffix); !os.IsNotExist(err) {
+				t.Fatal("no backup should exist for a refused write")
+			}
+		})
+	}
+}
+
+// Trailing whitespace is not trailing content.
+func TestMergeJSONAcceptsTrailingWhitespace(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "mcp.json")
+	writeInitial(t, path, "{\"mcpServers\": {}}\n\n  \t\n")
+
+	res, err := mergeJSON(path, ServerName, map[string]any{"url": testURL})
+	if err != nil {
+		t.Fatalf("mergeJSON: %v", err)
+	}
+	if res.Status != StatusAdded {
+		t.Fatalf("status = %q, want added", res.Status)
+	}
+	decodeDoc(t, readBytes(t, path))
+}
